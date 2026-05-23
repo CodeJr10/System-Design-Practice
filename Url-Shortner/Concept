@@ -1,761 +1,315 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>URL Shortener — System Design</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com"/>
-  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
-  <style>
-    :root {
-      --bg: #0a0a0f;
-      --surface: #111118;
-      --surface2: #1a1a24;
-      --border: #2a2a38;
-      --accent: #4f6ef7;
-      --accent2: #a78bfa;
-      --green: #34d399;
-      --yellow: #fbbf24;
-      --red: #f87171;
-      --text: #e8e8f0;
-      --muted: #6b6b8a;
-      --heading-font: 'Syne', sans-serif;
-      --body-font: 'DM Sans', sans-serif;
-      --mono-font: 'DM Mono', monospace;
-    }
+<div align="center">
 
-    * { margin: 0; padding: 0; box-sizing: border-box; }
+# 🔗 URL Shortener — System Design
 
-    body {
-      background-color: var(--bg);
-      color: var(--text);
-      font-family: var(--body-font);
-      font-size: 15px;
-      line-height: 1.8;
-    }
+A scalable URL shortening service similar to Bitly or TinyURL.
 
-    /* Header */
-    .hero {
-      padding: 80px 40px 60px;
-      max-width: 900px;
-      margin: 0 auto;
-      border-bottom: 1px solid var(--border);
-    }
+![System Design](https://img.shields.io/badge/System-Design-4f6ef7?style=flat-square)
+![Database](https://img.shields.io/badge/Database-PostgreSQL-336791?style=flat-square&logo=postgresql&logoColor=white)
+![Cache](https://img.shields.io/badge/Cache-Redis-DC382D?style=flat-square&logo=redis&logoColor=white)
+![Queue](https://img.shields.io/badge/Queue-Kafka-231F20?style=flat-square&logo=apachekafka&logoColor=white)
 
-    .hero-tag {
-      display: inline-block;
-      font-family: var(--mono-font);
-      font-size: 11px;
-      letter-spacing: 0.15em;
-      text-transform: uppercase;
-      color: var(--accent);
-      background: rgba(79,110,247,0.1);
-      border: 1px solid rgba(79,110,247,0.25);
-      padding: 4px 12px;
-      border-radius: 99px;
-      margin-bottom: 24px;
-    }
-
-    .hero h1 {
-      font-family: var(--heading-font);
-      font-size: clamp(36px, 5vw, 58px);
-      font-weight: 800;
-      line-height: 1.1;
-      letter-spacing: -0.02em;
-      margin-bottom: 20px;
-      background: linear-gradient(135deg, #e8e8f0 0%, #a78bfa 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-    }
-
-    .hero p {
-      color: var(--muted);
-      font-size: 16px;
-      max-width: 540px;
-    }
-
-    .hero-example {
-      margin-top: 28px;
-      padding: 16px 20px;
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      font-family: var(--mono-font);
-      font-size: 13px;
-    }
-
-    .hero-example .label {
-      color: var(--muted);
-      font-size: 11px;
-      text-transform: uppercase;
-      letter-spacing: 0.1em;
-      margin-bottom: 4px;
-    }
-
-    .hero-example .url-long { color: var(--muted); }
-    .hero-example .url-short { color: var(--green); margin-top: 8px; }
-    .hero-example .arrow { color: var(--accent); margin: 4px 0; }
-
-    /* Layout */
-    .layout {
-      display: grid;
-      grid-template-columns: 220px 1fr;
-      max-width: 1100px;
-      margin: 0 auto;
-      gap: 0;
-    }
-
-    /* TOC Sidebar */
-    .toc {
-      position: sticky;
-      top: 0;
-      height: 100vh;
-      overflow-y: auto;
-      padding: 40px 24px;
-      border-right: 1px solid var(--border);
-    }
-
-    .toc-title {
-      font-family: var(--mono-font);
-      font-size: 10px;
-      letter-spacing: 0.15em;
-      text-transform: uppercase;
-      color: var(--muted);
-      margin-bottom: 16px;
-    }
-
-    .toc a {
-      display: block;
-      font-size: 13px;
-      color: var(--muted);
-      text-decoration: none;
-      padding: 5px 0;
-      border-left: 2px solid transparent;
-      padding-left: 10px;
-      transition: all 0.2s;
-    }
-
-    .toc a:hover {
-      color: var(--text);
-      border-left-color: var(--accent);
-    }
-
-    /* Main content */
-    .content {
-      padding: 40px 60px 80px;
-    }
-
-    /* Sections */
-    .section {
-      margin-bottom: 60px;
-      padding-bottom: 60px;
-      border-bottom: 1px solid var(--border);
-    }
-
-    .section:last-child { border-bottom: none; }
-
-    .section-tag {
-      font-family: var(--mono-font);
-      font-size: 10px;
-      letter-spacing: 0.15em;
-      text-transform: uppercase;
-      color: var(--accent);
-      margin-bottom: 8px;
-    }
-
-    h2 {
-      font-family: var(--heading-font);
-      font-size: 26px;
-      font-weight: 700;
-      color: var(--text);
-      margin-bottom: 20px;
-      letter-spacing: -0.01em;
-    }
-
-    h3 {
-      font-family: var(--heading-font);
-      font-size: 17px;
-      font-weight: 600;
-      color: var(--text);
-      margin: 24px 0 12px;
-    }
-
-    p { color: #b0b0cc; margin-bottom: 12px; }
-
-    ul, ol {
-      padding-left: 20px;
-      color: #b0b0cc;
-      margin-bottom: 12px;
-    }
-
-    li { margin-bottom: 4px; }
-
-    /* Code blocks */
-    pre {
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 20px 24px;
-      overflow-x: auto;
-      margin: 16px 0;
-      position: relative;
-    }
-
-    pre code {
-      font-family: var(--mono-font);
-      font-size: 13px;
-      line-height: 1.7;
-      color: #c8c8e0;
-    }
-
-    .code-label {
-      font-family: var(--mono-font);
-      font-size: 10px;
-      text-transform: uppercase;
-      letter-spacing: 0.1em;
-      color: var(--muted);
-      margin-bottom: 6px;
-    }
-
-    code {
-      font-family: var(--mono-font);
-      font-size: 13px;
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      padding: 2px 6px;
-      border-radius: 4px;
-      color: var(--accent2);
-    }
-
-    pre code { background: none; border: none; padding: 0; color: #c8c8e0; }
-
-    /* Cards grid */
-    .card-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 16px;
-      margin: 20px 0;
-    }
-
-    .card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 20px;
-    }
-
-    .card-icon {
-      font-size: 22px;
-      margin-bottom: 10px;
-    }
-
-    .card h4 {
-      font-family: var(--heading-font);
-      font-size: 14px;
-      font-weight: 600;
-      margin-bottom: 6px;
-      color: var(--text);
-    }
-
-    .card p {
-      font-size: 13px;
-      color: var(--muted);
-      margin: 0;
-    }
-
-    /* Tables */
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin: 16px 0;
-      font-size: 14px;
-    }
-
-    th {
-      font-family: var(--mono-font);
-      font-size: 11px;
-      text-transform: uppercase;
-      letter-spacing: 0.1em;
-      color: var(--muted);
-      text-align: left;
-      padding: 10px 16px;
-      border-bottom: 1px solid var(--border);
-    }
-
-    td {
-      padding: 12px 16px;
-      border-bottom: 1px solid var(--border);
-      color: #b0b0cc;
-    }
-
-    tr:last-child td { border-bottom: none; }
-    tr:hover td { background: var(--surface2); }
-
-    /* Badges */
-    .badge {
-      display: inline-block;
-      font-family: var(--mono-font);
-      font-size: 11px;
-      padding: 3px 10px;
-      border-radius: 99px;
-      margin: 2px;
-    }
-
-    .badge-blue { background: rgba(79,110,247,0.15); color: #818cf8; border: 1px solid rgba(79,110,247,0.3); }
-    .badge-green { background: rgba(52,211,153,0.12); color: #34d399; border: 1px solid rgba(52,211,153,0.3); }
-    .badge-yellow { background: rgba(251,191,36,0.12); color: #fbbf24; border: 1px solid rgba(251,191,36,0.3); }
-    .badge-red { background: rgba(248,113,113,0.12); color: #f87171; border: 1px solid rgba(248,113,113,0.3); }
-    .badge-purple { background: rgba(167,139,250,0.12); color: #a78bfa; border: 1px solid rgba(167,139,250,0.3); }
-
-    /* Two col */
-    .two-col {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 16px;
-      margin: 16px 0;
-    }
-
-    .info-box {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 16px 20px;
-    }
-
-    .info-box h4 {
-      font-family: var(--heading-font);
-      font-size: 14px;
-      font-weight: 600;
-      margin-bottom: 10px;
-      color: var(--text);
-    }
-
-    .info-box ul { margin: 0; }
-    .info-box li { font-size: 13px; color: var(--muted); }
-
-    /* Highlight box */
-    .highlight {
-      border-left: 3px solid var(--accent);
-      background: rgba(79,110,247,0.06);
-      padding: 14px 18px;
-      border-radius: 0 6px 6px 0;
-      margin: 16px 0;
-      font-size: 14px;
-      color: #b0b0cc;
-    }
-
-    /* Flow diagram */
-    .flow {
-      display: flex;
-      flex-direction: column;
-      align-items: flex-start;
-      gap: 0;
-      margin: 16px 0;
-    }
-
-    .flow-step {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-
-    .flow-box {
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      padding: 8px 16px;
-      font-family: var(--mono-font);
-      font-size: 13px;
-      color: var(--text);
-    }
-
-    .flow-box.accent { border-color: var(--accent); color: var(--accent); }
-    .flow-box.green { border-color: var(--green); color: var(--green); }
-
-    .flow-arrow {
-      width: 1px;
-      height: 20px;
-      background: var(--border);
-      margin-left: 24px;
-    }
-
-    @media (max-width: 768px) {
-      .layout { grid-template-columns: 1fr; }
-      .toc { display: none; }
-      .content { padding: 24px; }
-      .two-col { grid-template-columns: 1fr; }
-      .hero { padding: 40px 24px; }
-    }
-  </style>
-</head>
-<body>
-
-<!-- Hero -->
-<div class="hero">
-  <div class="hero-tag">System Design</div>
-  <h1>URL Shortener</h1>
-  <p>A scalable URL shortening service — from architecture to production trade-offs.</p>
-  <div class="hero-example">
-    <div class="label">Example</div>
-    <div class="url-long">https://www.example.com/blog/system-design/url-shortener-guide</div>
-    <div class="arrow">↓</div>
-    <div class="url-short">https://short.ly/aZ91Kx</div>
-  </div>
 </div>
 
-<div class="layout">
+---
 
-  <!-- TOC -->
-  <nav class="toc">
-    <div class="toc-title">Contents</div>
-    <a href="#requirements">Requirements</a>
-    <a href="#architecture">Architecture</a>
-    <a href="#database">Database</a>
-    <a href="#url-generation">URL Generation</a>
-    <a href="#id-generation">ID Generation</a>
-    <a href="#caching">Caching</a>
-    <a href="#scaling">Scaling</a>
-    <a href="#analytics">Analytics</a>
-    <a href="#security">Security</a>
-    <a href="#redirects">Redirect Types</a>
-    <a href="#api">API Design</a>
-    <a href="#tradeoffs">Trade-Offs</a>
-    <a href="#techstack">Tech Stack</a>
-    <a href="#conclusion">Conclusion</a>
-  </nav>
+## 📌 Overview
 
-  <!-- Content -->
-  <main class="content">
+A URL shortener converts long URLs into short, shareable links.
 
-    <!-- Requirements -->
-    <div class="section" id="requirements">
-      <div class="section-tag">01 — Requirements</div>
-      <h2>Requirements</h2>
-      <div class="two-col">
-        <div class="info-box">
-          <h4>Functional</h4>
-          <ul>
-            <li>Create short URLs</li>
-            <li>Redirect to original URLs</li>
-            <li>Support custom aliases</li>
-            <li>Optional expiration time</li>
-            <li>Analytics tracking</li>
-          </ul>
-        </div>
-        <div class="info-box">
-          <h4>Non-Functional</h4>
-          <ul>
-            <li>High availability</li>
-            <li>Low latency</li>
-            <li>Scalability</li>
-            <li>Fault tolerance</li>
-            <li>Durability &amp; Security</li>
-          </ul>
-        </div>
-      </div>
-    </div>
+```
+Original  →  https://www.example.com/blog/system-design/url-shortener-guide
+Short     →  https://short.ly/aZ91Kx
+```
 
-    <!-- Architecture -->
-    <div class="section" id="architecture">
-      <div class="section-tag">02 — Architecture</div>
-      <h2>High Level Architecture</h2>
-      <div class="card-grid">
-        <div class="card">
-          <div class="card-icon">⚖️</div>
-          <h4>Load Balancer</h4>
-          <p>Distributes traffic across API and redirect servers.</p>
-        </div>
-        <div class="card">
-          <div class="card-icon">🔗</div>
-          <h4>URL Shortener Service</h4>
-          <p>Accepts long URLs, generates short codes, stores mappings.</p>
-        </div>
-        <div class="card">
-          <div class="card-icon">↪️</div>
-          <h4>Redirect Service</h4>
-          <p>Fetches original URL and redirects the user instantly.</p>
-        </div>
-        <div class="card">
-          <div class="card-icon">🗄️</div>
-          <h4>Database</h4>
-          <p>Stores URL mappings, expiry, and click counts.</p>
-        </div>
-        <div class="card">
-          <div class="card-icon">⚡</div>
-          <h4>Redis Cache</h4>
-          <p>Reduces DB load for frequently accessed URLs.</p>
-        </div>
-      </div>
-    </div>
+When a user opens the short URL, the service redirects them to the original.
 
-    <!-- Database -->
-    <div class="section" id="database">
-      <div class="section-tag">03 — Database</div>
-      <h2>Database Design</h2>
-      <div class="code-label">Schema — url_mapping</div>
-      <pre><code>CREATE TABLE url_mapping (
+---
+
+## ✅ Requirements
+
+<details>
+<summary><b>Functional Requirements</b></summary>
+
+- Create short URLs
+- Redirect to original URLs
+- Support custom aliases
+- Optional expiration time
+- Analytics tracking
+
+</details>
+
+<details>
+<summary><b>Non-Functional Requirements</b></summary>
+
+- High availability
+- Low latency
+- Scalability
+- Fault tolerance
+- Durability & Security
+
+</details>
+
+---
+
+## 🏗 High Level Architecture
+
+```
+Client
+  │
+  ▼
+Load Balancer
+  │
+  ├──────────────────────┐
+  ▼                      ▼
+URL Shortener       Redirect Service
+Service                   │
+  │                       │
+  └──────────┬────────────┘
+             ▼
+          Database
+             │
+             ▼
+         Redis Cache
+```
+
+---
+
+## 🧩 Core Components
+
+<details>
+<summary><b>1. URL Shortener Service</b></summary>
+
+Responsible for accepting long URLs, generating short codes, and storing mappings.
+
+```http
+POST /api/v1/shorten
+```
+
+**Request**
+```json
+{ "url": "https://example.com/very-long-url" }
+```
+
+**Response**
+```json
+{ "shortUrl": "https://short.ly/abc123" }
+```
+
+</details>
+
+<details>
+<summary><b>2. Redirect Service</b></summary>
+
+Responsible for fetching the original URL and redirecting users.
+
+```http
+GET /abc123
+→ 301 Redirect to Original URL
+```
+
+</details>
+
+---
+
+## 🗄 Database Design
+
+```sql
+CREATE TABLE url_mapping (
     id           BIGINT PRIMARY KEY,
     short_code   VARCHAR(10) UNIQUE,
     original_url TEXT,
     created_at   TIMESTAMP,
     expiry_at    TIMESTAMP,
     click_count  BIGINT
-);</code></pre>
-    </div>
+);
+```
 
-    <!-- URL Generation -->
-    <div class="section" id="url-generation">
-      <div class="section-tag">04 — URL Generation</div>
-      <h2>URL Generation Techniques</h2>
+---
 
-      <h3>1. Hashing</h3>
-      <pre><code>MD5(long_url) -> xYz123</code></pre>
-      <div class="two-col">
-        <div class="info-box">
-          <h4>✅ Advantages</h4>
-          <ul><li>Simple</li><li>Deterministic</li></ul>
-        </div>
-        <div class="info-box">
-          <h4>❌ Disadvantages</h4>
-          <ul><li>Collision handling required</li><li>Predictable</li></ul>
-        </div>
-      </div>
+## 🔗 URL Generation
 
-      <h3>2. Base62 Encoding <span class="badge badge-green">Preferred</span></h3>
-      <p>Character set: <code>[a-zA-Z0-9]</code></p>
-      <pre><code>shortCode = encodeBase62(ID)
-125 -> "cb"</code></pre>
-      <div class="highlight">
-        Base62 is URL-friendly, compact, and efficient. It avoids special characters that break URLs while keeping codes short enough to be shareable.
-      </div>
-    </div>
+<details>
+<summary><b>1. Hashing</b></summary>
 
-    <!-- ID Generation -->
-    <div class="section" id="id-generation">
-      <div class="section-tag">05 — ID Generation</div>
-      <h2>ID Generation Strategies</h2>
-      <div class="two-col">
-        <div class="info-box">
-          <h4>Auto Increment</h4>
-          <ul>
-            <li>Simple to implement</li>
-            <li>❌ Predictable &amp; insecure</li>
-          </ul>
-        </div>
-        <div class="info-box">
-          <h4>Distributed IDs <span class="badge badge-blue">Recommended</span></h4>
-          <ul>
-            <li>Snowflake IDs</li>
-            <li>UUIDs</li>
-            <li>Randomized IDs + Base62</li>
-          </ul>
-        </div>
-      </div>
-    </div>
+```
+MD5(long_url) → xYz123
+```
 
-    <!-- Caching -->
-    <div class="section" id="caching">
-      <div class="section-tag">06 — Caching</div>
-      <h2>Caching Strategy</h2>
-      <p>Use Redis to reduce database load on frequently accessed short URLs.</p>
-      <div class="flow">
-        <div class="flow-step"><div class="flow-box accent">Request Short URL</div></div>
-        <div class="flow-arrow"></div>
-        <div class="flow-step"><div class="flow-box">Check Redis Cache</div></div>
-        <div class="flow-arrow"></div>
-        <div class="flow-step"><div class="flow-box green">Cache Hit → Return URL</div></div>
-        <div class="flow-arrow"></div>
-        <div class="flow-step"><div class="flow-box">Cache Miss → Query Database</div></div>
-        <div class="flow-arrow"></div>
-        <div class="flow-step"><div class="flow-box">Store in Cache → Return URL</div></div>
-      </div>
-    </div>
+| | |
+|---|---|
+| ✅ Simple & deterministic | ❌ Collision handling required |
 
-    <!-- Scaling -->
-    <div class="section" id="scaling">
-      <div class="section-tag">07 — Scaling</div>
-      <h2>Scaling the System</h2>
-      <div class="card-grid">
-        <div class="card">
-          <h4>Horizontal Scaling</h4>
-          <p>Add more API &amp; redirect servers behind a load balancer.</p>
-        </div>
-        <div class="card">
-          <h4>Read Replicas</h4>
-          <p>Offload heavy reads and analytics queries to replicas.</p>
-        </div>
-        <div class="card">
-          <h4>Sharding</h4>
-          <p>Shard by user ID or short code range to distribute data.</p>
-        </div>
-        <div class="card">
-          <h4>CDN</h4>
-          <p>Lower latency for popular URLs with global edge caching.</p>
-        </div>
-      </div>
-    </div>
+</details>
 
-    <!-- Analytics -->
-    <div class="section" id="analytics">
-      <div class="section-tag">08 — Analytics</div>
-      <h2>Analytics Pipeline</h2>
-      <p>Track clicks, browser, device, geolocation, and referrer asynchronously so it never blocks redirects.</p>
-      <div class="flow">
-        <div class="flow-step"><div class="flow-box accent">Redirect Service</div></div>
-        <div class="flow-arrow"></div>
-        <div class="flow-step"><div class="flow-box">Message Queue (Kafka)</div></div>
-        <div class="flow-arrow"></div>
-        <div class="flow-step"><div class="flow-box">Analytics Workers</div></div>
-        <div class="flow-arrow"></div>
-        <div class="flow-step"><div class="flow-box green">Analytics Database</div></div>
-      </div>
-    </div>
+<details>
+<summary><b>2. Base62 Encoding (Recommended)</b></summary>
 
-    <!-- Security -->
-    <div class="section" id="security">
-      <div class="section-tag">09 — Security</div>
-      <h2>Security Considerations</h2>
-      <div class="two-col">
-        <div class="info-box">
-          <h4>Threats</h4>
-          <ul>
-            <li>Spam &amp; abuse</li>
-            <li>Malware links</li>
-            <li>Phishing attacks</li>
-          </ul>
-        </div>
-        <div class="info-box">
-          <h4>Solutions</h4>
-          <ul>
-            <li>Rate limiting</li>
-            <li>CAPTCHA</li>
-            <li>URL validation &amp; blacklist scanning</li>
-          </ul>
-        </div>
-      </div>
-      <div class="highlight">
-        Rate limiting uses Token Bucket or Leaky Bucket algorithms with counters stored in Redis. Example: 100 requests/minute/user.
-      </div>
-    </div>
+Character set: `[a-zA-Z0-9]`
 
-    <!-- Redirect Types -->
-    <div class="section" id="redirects">
-      <div class="section-tag">10 — Redirects</div>
-      <h2>Redirect Types</h2>
-      <div class="two-col">
-        <div class="info-box">
-          <h4>301 — Permanent</h4>
-          <ul>
-            <li>✅ SEO friendly</li>
-            <li>✅ Browser caching</li>
-            <li>❌ Hard to modify later</li>
-          </ul>
-        </div>
-        <div class="info-box">
-          <h4>302 — Temporary</h4>
-          <ul>
-            <li>✅ Flexible &amp; modifiable</li>
-            <li>❌ Less caching efficiency</li>
-          </ul>
-        </div>
-      </div>
-    </div>
+```
+shortCode = encodeBase62(ID)
+125 → "cb"
+```
 
-    <!-- API -->
-    <div class="section" id="api">
-      <div class="section-tag">11 — API Design</div>
-      <h2>API Design</h2>
+- URL friendly — no special characters
+- Compact representation
+- Efficient encoding
 
-      <h3>Create Short URL</h3>
-      <div class="code-label">POST /shorten</div>
-      <pre><code>// Request
-{ "url": "https://example.com/very-long-url" }
+</details>
 
-// Response
-{ "shortUrl": "https://short.ly/abc123" }</code></pre>
+---
 
-      <h3>Redirect</h3>
-      <div class="code-label">GET /{shortCode}</div>
-      <pre><code>301 Redirect → Original URL</code></pre>
+## 🆔 ID Generation
 
-      <h3>Analytics</h3>
-      <div class="code-label">GET /analytics/{shortCode}</div>
-      <pre><code>{ "clicks": 4821, "topCountry": "IN", "device": "mobile" }</code></pre>
-    </div>
+| Strategy | Pros | Cons |
+|---|---|---|
+| Auto Increment | Simple | Predictable, insecure |
+| Snowflake IDs | Distributed, unique | More complex |
+| Random + Base62 ✅ | Secure, scalable | Collision handling |
 
-    <!-- Trade-offs -->
-    <div class="section" id="tradeoffs">
-      <div class="section-tag">12 — Trade-Offs</div>
-      <h2>Trade-Offs</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>Choice</th>
-            <th>Advantage</th>
-            <th>Drawback</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td><span class="badge badge-blue">SQL Database</span></td>
-            <td>Strong consistency</td>
-            <td>Harder to scale</td>
-          </tr>
-          <tr>
-            <td><span class="badge badge-purple">NoSQL Database</span></td>
-            <td>High scalability</td>
-            <td>Eventual consistency</td>
-          </tr>
-          <tr>
-            <td><span class="badge badge-yellow">Sequential IDs</span></td>
-            <td>Simple implementation</td>
-            <td>Predictable &amp; insecure</td>
-          </tr>
-          <tr>
-            <td><span class="badge badge-green">Random IDs</span></td>
-            <td>Secure</td>
-            <td>Collision handling needed</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+---
 
-    <!-- Tech Stack -->
-    <div class="section" id="techstack">
-      <div class="section-tag">13 — Tech Stack</div>
-      <h2>Tech Stack</h2>
-      <table>
-        <thead>
-          <tr><th>Layer</th><th>Technology</th></tr>
-        </thead>
-        <tbody>
-          <tr><td>Backend</td><td><span class="badge badge-green">Node.js</span> <span class="badge badge-blue">Go</span> <span class="badge badge-purple">Java</span></td></tr>
-          <tr><td>Database</td><td><span class="badge badge-blue">PostgreSQL</span></td></tr>
-          <tr><td>Cache</td><td><span class="badge badge-red">Redis</span></td></tr>
-          <tr><td>Queue</td><td><span class="badge badge-yellow">Kafka</span></td></tr>
-          <tr><td>Load Balancer</td><td><span class="badge badge-green">NGINX</span></td></tr>
-          <tr><td>Monitoring</td><td><span class="badge badge-purple">Prometheus + Grafana</span></td></tr>
-        </tbody>
-      </table>
-    </div>
+## ⚡ Caching Strategy
 
-    <!-- Conclusion -->
-    <div class="section" id="conclusion">
-      <div class="section-tag">14 — Conclusion</div>
-      <h2>Conclusion</h2>
-      <p>A URL shortener is a classic distributed systems problem. The key pillars are:</p>
-      <div class="card-grid">
-        <div class="card"><h4>Base62 Encoding</h4><p>Compact, URL-safe short codes.</p></div>
-        <div class="card"><h4>Distributed IDs</h4><p>Secure, non-predictable generation.</p></div>
-        <div class="card"><h4>Redis Caching</h4><p>Low-latency redirects at scale.</p></div>
-        <div class="card"><h4>Async Analytics</h4><p>Never block the redirect path.</p></div>
-        <div class="card"><h4>Horizontal Scaling</h4><p>Handle billions of URLs reliably.</p></div>
-      </div>
-    </div>
+```
+Request Short URL
+      │
+      ▼
+Check Redis Cache
+      │
+   ┌──┴──┐
+  Hit   Miss
+   │     │
+Return  Query DB
+  URL     │
+         Store in Cache
+          │
+        Return URL
+```
 
-  </main>
-</div>
+---
 
-</body>
-</html>
+## 📈 Scaling
+
+<details>
+<summary><b>Horizontal Scaling</b></summary>
+
+Add more API and redirect servers behind a load balancer.
+
+</details>
+
+<details>
+<summary><b>Database Scaling</b></summary>
+
+- **Read Replicas** — for heavy reads and analytics queries
+- **Sharding** — shard by user ID or short code range
+
+</details>
+
+<details>
+<summary><b>Optimizations</b></summary>
+
+- CDN for lower latency globally
+- Hot URL caching — popular URLs stay longer in cache
+- Async analytics — never block redirects
+
+</details>
+
+---
+
+## 📊 Analytics Pipeline
+
+```
+Redirect Service
+      │
+      ▼
+Message Queue (Kafka)
+      │
+      ▼
+Analytics Workers
+      │
+      ▼
+Analytics Database
+```
+
+Tracks: click count · browser · device · geolocation · referrer
+
+---
+
+## 🔒 Security
+
+| Threat | Solution |
+|---|---|
+| Spam & abuse | Rate limiting (100 req/min/user) |
+| Malware links | URL blacklist scanning |
+| Phishing | CAPTCHA + URL validation |
+
+Rate limiting uses **Token Bucket** or **Leaky Bucket** with counters in Redis.
+
+---
+
+## 🌐 Redirect Types
+
+| Type | Use Case | Pros | Cons |
+|---|---|---|---|
+| `301` Permanent | SEO, stable URLs | Browser caching, SEO friendly | Hard to change later |
+| `302` Temporary | Analytics, A/B | Flexible | Less caching efficiency |
+
+---
+
+## 📡 API Design
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `POST` | `/shorten` | Create a short URL |
+| `GET` | `/{shortCode}` | Redirect to original URL |
+| `GET` | `/analytics/{shortCode}` | Get click analytics |
+
+---
+
+## ⚖ Trade-Offs
+
+| Choice | Advantage | Drawback |
+|---|---|---|
+| SQL Database | Strong consistency | Harder to scale |
+| NoSQL Database | High scalability | Eventual consistency |
+| Sequential IDs | Simple | Predictable & insecure |
+| Random IDs | Secure | Collision handling needed |
+
+---
+
+## 🛠 Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Backend | Node.js / Go / Java |
+| Database | PostgreSQL |
+| Cache | Redis |
+| Queue | Kafka |
+| Load Balancer | NGINX |
+| Monitoring | Prometheus + Grafana |
+
+---
+
+## 📚 Interview Discussion Points
+
+- How to avoid hash collisions?
+- How to scale redirect traffic?
+- SQL vs NoSQL — which to choose?
+- Cache invalidation strategy?
+- How to handle billions of URLs?
+- Hot partition handling?
+- Analytics scaling without blocking redirects?
+
+---
+
+## ✅ Conclusion
+
+A URL shortener is a classic distributed systems problem. Key concepts:
+
+- **Base62 encoding** — compact, URL-safe short codes
+- **Distributed ID generation** — secure and non-predictable
+- **Redis caching** — low-latency redirects at scale
+- **Async analytics** — never block the redirect path
+- **Horizontal scaling** — handle billions of URLs reliably
