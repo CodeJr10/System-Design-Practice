@@ -16,8 +16,7 @@ A flexible, production-ready rate limiting library that controls the frequency o
 - [Usage Examples](#usage-examples)
 - [API Reference](#api-reference)
 - [Error Handling](#error-handling)
-- [Contributing](#contributing)
-- [License](#license)
+
 
 ---
 
@@ -269,20 +268,3 @@ For HTTP APIs, return a `429 Too Many Requests` response with a `Retry-After` he
 
 ---
 
-## Contributing
-
-Contributions are welcome! Please open an issue before submitting a pull request for major changes.
-
-1. Fork the repository
-2. Create your feature branch: `git checkout -b feature/my-feature`
-3. Commit your changes: `git commit -m 'Add my feature'`
-4. Push to the branch: `git push origin feature/my-feature`
-5. Open a Pull Request
-
-Please make sure all tests pass: `npm test`
-
----
-
-## License
-
-MIT © [Your Name](https://github.com/yourname)
