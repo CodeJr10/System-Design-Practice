@@ -1,14 +1,4 @@
 
-# 🚦 Rate Limiter
-
-A flexible, production-ready rate limiting library that controls the frequency of operations — protecting your APIs, services, and resources from overload.
-
----
-
-## Table of Contents
-
-- [Overview](#overview)
-- [How It Works](#how-it-works)
 - [Algorithms](#algorithms)
 - [Installation](#installation)
 - [Quick Start](#quick-start)
